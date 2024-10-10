@@ -1,6 +1,8 @@
 "use client";
 import { useEffect, useState } from 'react';
 import { createClient } from '@/utils/supabase/client';
+import { Placeholder } from "@/components/empty";
+import { Fragment } from "react";
 import Image from 'next/image';
 import {
   ChatBubbleBottomCenterIcon,
@@ -19,12 +21,7 @@ export default function PostDetail({ params: { pid } }) {
   const [comments, setComments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedSort, setSelectedSort] = useState("All Comments");
-
-  const hotTopics = [
-    { id: "new-game", name: "NEWGAME", posts: 0, members: 0 },
-    { id: "open-world", name: "OPENWORLD", posts: 0, members: 0 },
-    { id: "mmo-rpg", name: "MMORPG", posts: 0, members: 0 },
-  ];
+  const [tags, setTags] = useState([]);
 
   useEffect(() => {
     if (pid && supabase) {
@@ -65,8 +62,22 @@ export default function PostDetail({ params: { pid } }) {
         }
       };
 
+      const fetchTags = async () => {
+        try {
+          const { data, error } = await supabase.from("tags").select();
+          if (error) {
+            console.error('Error fetching tags:', error);
+          } else {
+            setTags(data);
+          }
+        } catch (err) {
+          console.error('Unexpected error:', err);
+        }
+      };
+
       fetchPost();
       fetchComments();
+      fetchTags();
     }
   }, [pid, supabase]);
 
@@ -83,11 +94,11 @@ export default function PostDetail({ params: { pid } }) {
   };
 
   return (
-    <div className="container mx-auto grid grid-cols-12 gap-12 p-4 lg:p-12">
-      <div className="col-span-8">
-        <div className="card bg-base-200 p-8">
+    <div className="container mx-auto flex gap-8 p-4 lg:p-8">
+      <div className="flex-1">
+        <div className="card bg-base-200 p-8 mt-4">
           <div className="flex justify-between items-center mb-6">
-            <div className="flex items-center gap-4">
+            <div className="flex gap-4">
               <div className="avatar">
                 <div className="rounded-full w-16 h-16 bg-neutral text-neutral-content">
                   {post.writer.avatar_url ? (
@@ -188,7 +199,6 @@ export default function PostDetail({ params: { pid } }) {
               )}
             </div>
 
-            {/* แสดงคอมเมนต์ */}
             <div className="space-y-4">
               {comments.length > 0 ? (
                 comments.map((comment, index) => (
@@ -245,28 +255,35 @@ export default function PostDetail({ params: { pid } }) {
         </div>
       </div>
 
-      <div className="col-span-3">
+      <div className="w-1/4">
         <div className="card bg-base-100 p-4">
           <h2 className="flex items-center text-xl font-bold">
             <FireIcon className="mr-2 h-6 w-6 text-red-500" />
             Hot Topics
           </h2>
           <ul>
-            {hotTopics.map((topic, index) => (
-              <li key={index} className="my-2">
-                <Link
-                  href={`/topics/${topic.id}`}
-                  className="flex items-center text-primary"
-                >
-                  #{topic.name}
-                </Link>
-                <span className="text-sm text-gray-500 dark:text-gray-400">
-                  - {topic.posts} posts • {topic.members} members
-                </span>
-              </li>
-            ))}
+            {tags?.length ? (
+              tags.map((tag) => (
+                <Fragment key={tag.id}>
+                  <li className="my-2">
+                    <Link href={`/topics/${tag.id}`} className="flex items-center text-primary">
+                      #{tag.name}
+                    </Link>
+                    <span className="text-sm text-gray-500">
+                      - {tag.posts?.length || 0} posts
+                    </span>
+                  </li>
+                </Fragment>
+              ))
+            ) : (
+              <Placeholder title="Empty Tags" description="There are currently no tags." />
+            )}
           </ul>
-          <button className="btn btn-primary mt-4">View More</button>
+          <div className="card-actions">
+            <Link href="/tags" className="btn btn-primary w-full">
+              View More
+            </Link>
+          </div>
         </div>
 
         <div className="mt-8 text-gray-400">
@@ -277,17 +294,17 @@ export default function PostDetail({ params: { pid } }) {
               </Link>
             </li>
             <li>
-              <Link href="/terms" className="text-primary">
+              <Link href="/agreements/terms" className="text-primary">
                 Terms of Services
               </Link>
             </li>
             <li>
-              <Link href="/privacy" className="text-primary">
-                Privacy of Policy
+              <Link href="/agreements/privacy" className="text-primary">
+                Privacy Policy
               </Link>
             </li>
             <li>
-              <Link href="/cookies" className="text-primary">
+              <Link href="/agreements/cookies" className="text-primary">
                 Cookies Policy
               </Link>
             </li>
@@ -297,6 +314,7 @@ export default function PostDetail({ params: { pid } }) {
           </p>
         </div>
       </div>
+
     </div>
   );
 }
