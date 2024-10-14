@@ -1,123 +1,170 @@
-import Link from "next/link";
-import { Fragment } from "react";
-import { Bars3BottomLeftIcon } from "@heroicons/react/24/solid";
+"use client";
+import { useState, useEffect, useTransition } from "react";
+import {
+  XMarkIcon,
+  Bars2Icon,
+  XCircleIcon,
+  ExclamationTriangleIcon,
+  InformationCircleIcon,
+} from "@heroicons/react/24/outline";
+import { InputContentEditor } from "@/components/editor";
+
+import { getCircles } from "@/lib/queries/circles";
+import { postAction } from "@/lib/actions/post";
 import { Section } from "@/components/section";
-import { Placeholder } from "@/components/empty";
-import { Post, PostPlaceholder } from "@/components/post";
-import { createClient } from "@/utils/supabase/server";
-import Input from "@/components/CreatePostModal";
-import { FireIcon } from "@heroicons/react/24/solid";
 
-export default async function Communities() {
-  const supabase = createClient();
-  const { data: posts } = await supabase.from("posts").select(`
-    id,
-    created_at,
-    title,
-    content,
-    views (users!views_user_id_fkey (*)),
-    likes (users!likes_user_id_fkey (*)),
-    comments (*),
-    shares (users!shares_user_id_fkey (*)),
-    writer:users!posts_writer_id_fkey (*)
-  `);
+export default function CreatePost() {
+  const [circles, setCircles] = useState([]);
+  const [title, setTitle] = useState();
+  const [content, setContent] = useState();
+  const [circle, setCircle] = useState();
+  const [tags, setTags] = useState([]);
+  const [status, setStatus] = useState();
 
-  const { data: tags } = await supabase.from("tags").select();
+  const [isPending, startTransition] = useTransition();
+
+  // const fetchGIFs = () => {
+  //   const apiKey = process.env.NEXT_PUBLIC_TENOR_API_KEY;
+  //   const clientKey = process.env.NEXT_PUBLIC_TENOR_CLIENT_KEY;
+  //   const limit = 8;
+
+  //   fetch(
+  //     `https://tenor.googleapis.com/v2/search?q=${null}&key=${apiKey}&client_key=${clientKey}&limit=${limit}`,
+  //   )
+  //     .then((response) => response.json())
+  //     .then((data) => setGifs(data.results || []))
+  //     .catch((error) => console.error("Error fetching GIFs:", error));
+  // };
+
+  const submitAction = (formData) => {
+    startTransition(async () => {
+      const status = await postAction(formData, content, tags);
+
+      setStatus(status);
+
+      if (status.type === "success") {
+        setStatus(null);
+      }
+    });
+  };
+
+  const addTag = (event) => {
+    if (event.key === "Enter" && event.target.value) {
+      setTags([...tags, event.target.value]);
+      event.target.value = "";
+    }
+  };
+
+  const removeTag = (at) => {
+    const newTags = tags.filter((_, index) => index !== at);
+    setTags(newTags);
+  };
+
+  useEffect(() => {
+    const fetchCircles = async () => {
+      const circles = await getCircles("id, name");
+      setCircles(circles);
+    };
+    fetchCircles();
+  }, []);
 
   return (
-    <div className="container mx-auto flex gap-8 p-4 lg:p-8">
-      <div className="flex-1">
-        <Section Icon={Bars3BottomLeftIcon} title="Posts" />
-        <Input />
-        {posts?.length ? (
-          <div className="rounded-xl bg-base-100">
-            {posts.map((post, index) => (
-              <Post
-                id={post.id}
-                createdAt={post.created_at}
-                title={post.title}
-                content={post.content}
-                view={post.views}
-                likes={post.likes}
-                comments={post.comments}
-                shares={post.shares}
-                writerID={post.writer?.id}
-                writerAvatarURL={post.writer?.avatar_url}
-                writerNickname={post.writer?.nickname}
-                isEnded={index + 1 === posts.length}
-                key={index}
-              />
-            ))}
+    <>
+      <Section
+        Icon={Bars2Icon}
+        title="Create Post"
+        description="Create new post."
+      />
+      <form className="space-y-4" action={submitAction}>
+        <label className="form-control w-full">
+          <div className="label">
+            <span className="label-text">Title</span>
           </div>
-        ) : (
-          <Placeholder
-            title="Empty Posts"
-            description="There are currently no posts."
+          <input
+            type="text"
+            name="title"
+            value={title}
+            onChange={(event) => setTitle(event.target.value)}
+            placeholder="Enter your post topic"
+            className="input input-bordered w-full"
+            required
+            disabled={isPending}
+          />
+        </label>
+        <InputContentEditor setState={setContent} disabled={isPending} />
+        <div className="grid grid-cols-2 gap-4">
+          <label className="form-control w-full">
+            <div className="label">
+              <span className="label-text">Circle</span>
+            </div>
+            <select
+              className="select select-bordered"
+              name="circle"
+              value={circle}
+              onChange={(event) => setCircle(event.target.value)}
+              disabled={isPending}
+            >
+              <option disabled selected>
+                Select Community
+              </option>
+              {circles.map((circle) => (
+                <option key={circle.id} value={circle.id}>
+                  {circle.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="form-control w-full">
+            <div className="label">
+              <span className="label-text">Topics</span>
+            </div>
+            <input
+              type="text"
+              placeholder="Add a tag and press Enter"
+              onKeyDown={addTag}
+              className="input input-bordered w-full"
+              disabled={isPending}
+            />
+            <div className="label">
+              <span className="label-text-alt flex flex-wrap gap-2">
+                {tags.map((tag, index) => (
+                  <span
+                    key={index}
+                    className="badge badge-primary badge-lg gap-2"
+                  >
+                    {tag}
+                    <button onClick={() => removeTag(index)}>
+                      <XMarkIcon className="size-4" />
+                    </button>
+                  </span>
+                ))}
+              </span>
+            </div>
+          </label>
+        </div>
+        {status?.message && (
+          <div
+            role="alert"
+            className={`alert alert-${status.type === "error" ? "danger" : status.type}`}
           >
-            <PostPlaceholder isEnded={true} />
-          </Placeholder>
-        )}
-      </div>
-
-      <div className="w-1/4">
-        <div className="card bg-base-100 p-4">
-          <h2 className="flex items-center text-xl font-bold">
-            <FireIcon className="mr-2 h-6 w-6 text-red-500" />
-            Hot Topics
-          </h2>
-          <ul>
-            {tags?.length ? (
-              tags.map((tag) => (
-                <Fragment key={tag.id}>
-                  <li className="my-2">
-                    <Link href={`/topics/${tag.id}`} className="flex items-center text-primary">
-                      #{tag.name}
-                    </Link>
-                    <span className="text-sm text-gray-500">
-                      - {tag.posts?.length || 0} posts
-                    </span>
-                  </li>
-                </Fragment>
-              ))
+            {status.type === "error" ? (
+              <XCircleIcon className="size-6" />
+            ) : status.type === "warning" ? (
+              <ExclamationTriangleIcon className="size-6" />
             ) : (
-              <Placeholder title="Empty Tags" description="There are currently no tags." />
+              <InformationCircleIcon className="size-6" />
             )}
-          </ul>
-          <div className="card-actions">
-            <Link href="/tags" className="btn btn-primary w-full">
-              View More
-            </Link>
+            <span>{status.message}</span>
           </div>
-        </div>
-
-        <div className="mt-8 text-gray-400">
-          <ul className="list-disc space-y-1 pl-4">
-            <li>
-              <Link href="/about" className="text-primary">
-                About
-              </Link>
-            </li>
-            <li>
-              <Link href="/agreements/terms" className="text-primary">
-                Terms of Services
-              </Link>
-            </li>
-            <li>
-              <Link href="/agreements/privacy" className="text-primary">
-                Privacy Policy
-              </Link>
-            </li>
-            <li>
-              <Link href="/agreements/cookies" className="text-primary">
-                Cookies Policy
-              </Link>
-            </li>
-          </ul>
-          <p className="mt-4 text-sm">
-            © Copyright MIXIT. All Rights Reserved.
-          </p>
-        </div>
-      </div>
-    </div>
+        )}
+        <button
+          type="submit"
+          className="btn btn-primary btn-block"
+          disabled={!title || !content || isPending}
+        >
+          {isPending && <span className="loading loading-spinner" />} Post
+        </button>
+      </form>
+    </>
   );
 }
